@@ -1,0 +1,1549 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CHERNOBYL-4 | 탈출 + SOUND</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    user-select: none;
+  }
+  #gameContainer { position: relative; display: inline-block; }
+  canvas { display: block; }
+
+  #ui {
+    position: absolute; top: 0; left: 0; right: 0;
+    pointer-events: none; padding: 10px 16px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    z-index: 10;
+  }
+  #timerBox {
+    background: rgba(0,0,0,0.75); border: 1px solid #444;
+    border-radius: 6px; padding: 6px 14px; text-align: center;
+    transition: border-color 0.5s;
+  }
+  #timerLabel { font-size: 10px; letter-spacing: 2px; color: #888; text-transform: uppercase; }
+  #timerValue {
+    font-size: 28px; font-weight: bold; letter-spacing: 3px;
+    color: #00ff88; text-shadow: 0 0 8px #00ff8855;
+    transition: color 0.5s, text-shadow 0.5s;
+  }
+  #phaseBox {
+    background: rgba(0,0,0,0.75); border: 1px solid #444;
+    border-radius: 6px; padding: 6px 14px; text-align: right;
+  }
+  #phaseLabel { font-size: 10px; letter-spacing: 2px; color: #888; }
+  #phaseValue { font-size: 13px; color: #ffcc00; letter-spacing: 1px; }
+
+  /* 볼륨 컨트롤 UI */
+  #volumeBox {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.75); border: 1px solid #444;
+    border-radius: 6px; padding: 5px 12px;
+    display: flex; align-items: center; gap: 8px;
+    z-index: 10; pointer-events: all;
+  }
+  #volumeBox label { font-size: 10px; color: #888; letter-spacing: 1px; }
+  #volSlider {
+    width: 70px; height: 3px; accent-color: #00ff88;
+    cursor: pointer;
+  }
+  #muteBtn {
+    background: none; border: 1px solid #555; color: #aaa;
+    font-size: 10px; padding: 2px 6px; cursor: pointer;
+    border-radius: 3px; font-family: 'Courier New', monospace;
+    letter-spacing: 1px;
+  }
+  #muteBtn:hover { border-color: #ff3333; color: #ff3333; }
+
+  #inventoryBox {
+    position: absolute; bottom: 10px; left: 16px;
+    background: rgba(0,0,0,0.75); border: 1px solid #444;
+    border-radius: 6px; padding: 6px 14px; color: #aaa;
+    font-size: 12px; letter-spacing: 1px; z-index: 10; pointer-events: none;
+  }
+  /* 사운드 상태 표시 (디버그용 - 우측 하단) */
+  #soundStatus {
+    position: absolute; bottom: 10px; right: 16px;
+    background: rgba(0,0,0,0.75); border: 1px solid #333;
+    border-radius: 6px; padding: 4px 10px; color: #555;
+    font-size: 9px; letter-spacing: 1px; z-index: 10; pointer-events: none;
+    line-height: 1.6;
+  }
+  #message {
+    position: absolute; bottom: 48px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.85); border: 1px solid #555;
+    border-radius: 6px; padding: 6px 18px; color: #fff;
+    font-size: 13px; letter-spacing: 1px; z-index: 10; pointer-events: none;
+    opacity: 0; transition: opacity 0.3s; white-space: nowrap;
+  }
+  #overlay {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.92);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; z-index: 100;
+  }
+  #overlay h1 {
+    color: #ff3333; font-size: 36px; letter-spacing: 8px;
+    text-shadow: 0 0 20px #ff333388; margin-bottom: 8px;
+  }
+  #overlay .subtitle { color: #888; font-size: 12px; letter-spacing: 4px; margin-bottom: 40px; }
+  #overlay .info-text {
+    color: #aaa; font-size: 13px; line-height: 2;
+    text-align: center; margin-bottom: 30px; letter-spacing: 1px;
+  }
+  #overlay .key-hint { color: #555; font-size: 11px; letter-spacing: 2px; margin-bottom: 10px; }
+  #startBtn {
+    background: transparent; border: 1px solid #ff3333; color: #ff3333;
+    font-family: 'Courier New', monospace; font-size: 14px; letter-spacing: 4px;
+    padding: 12px 40px; cursor: pointer; transition: all 0.2s;
+  }
+  #startBtn:hover { background: #ff3333; color: #000; }
+  #overlay .result-msg { font-size: 18px; letter-spacing: 3px; margin-bottom: 16px; }
+  .msg-gameover { color: #ff3333; }
+  .msg-clear    { color: #00ff88; }
+  .msg-timeout  { color: #ffcc00; }
+
+  /* 심장박동 시각 피드백 (화면 테두리 펄스) */
+  #heartPulse {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none; z-index: 5;
+    box-shadow: inset 0 0 0 rgba(255,0,0,0);
+    transition: box-shadow 0.05s;
+  }
+  /* 점프스케어 플래시 */
+  #jumpFlash {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(255,255,255,0);
+    pointer-events: none; z-index: 50;
+    transition: background 0.05s;
+  }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <canvas id="gameCanvas"></canvas>
+
+  <div id="ui">
+    <div id="timerBox">
+      <div id="timerLabel">남은 시간</div>
+      <div id="timerValue">5:00</div>
+    </div>
+    <div id="phaseBox">
+      <div id="phaseLabel">위협 단계</div>
+      <div id="phaseValue">탐색 중</div>
+    </div>
+  </div>
+
+  <!-- 볼륨 컨트롤 -->
+  <div id="volumeBox">
+    <label>VOL</label>
+    <input type="range" id="volSlider" min="0" max="100" value="80">
+    <button id="muteBtn">MUTE</button>
+  </div>
+
+  <!-- 심장박동 테두리 -->
+  <div id="heartPulse"></div>
+  <!-- 점프스케어 플래시 -->
+  <div id="jumpFlash"></div>
+
+  <div id="inventoryBox">인벤토리: 없음</div>
+  <div id="soundStatus">♪ 사운드 초기화 대기</div>
+  <div id="message"></div>
+
+  <div id="overlay">
+    <h1>CHERNOBYL-4</h1>
+    <div class="subtitle">원자로 탈출 작전</div>
+    <div class="info-text">
+      열쇠를 찾아 출구를 열고 탈출하라<br>
+      괴물에게 잡히면 죽는다<br>
+      5분 이내에 탈출하라
+    </div>
+    <div class="key-hint">이동: WASD / 방향키</div>
+    <button id="startBtn">[ 시작하기 ]</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  CHERNOBYL-4 | 체르노빌 탈출 게임 + 사운드 시스템
+//  Web Audio API를 사용한 절차적(Procedural) 사운드 생성
+//  외부 파일 없음 - 모든 사운드를 코드로 직접 합성
+// ═══════════════════════════════════════════════════════════════════
+
+// ──────────────────────────────────────────────────────────────────
+//  [SECTION 1] 캔버스 & 게임 상수 초기화
+// ──────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+
+const TILE = 32;
+const COLS = 25;
+const ROWS = 19;
+canvas.width  = TILE * COLS;  // 800px
+canvas.height = TILE * ROWS;  // 608px
+
+const T = { WALL:0, FLOOR:1, DOOR_L:2, DOOR_O:3, EXIT:4, LOCK:5 };
+
+const MAP_TEMPLATE = [
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  [0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0],
+  [0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0],
+  [0,1,1,1,1,1,2,1,1,1,1,1,0,1,1,1,1,1,2,1,1,1,1,5,0],
+  [0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0],
+  [0,0,2,0,0,0,0,0,0,2,0,0,0,0,0,2,0,0,0,0,2,0,0,0,0],
+  [0,1,1,1,1,1,1,1,1,1,0,1,1,1,0,1,1,1,1,1,1,1,1,1,0],
+  [0,1,1,1,1,1,1,1,1,1,0,1,1,1,0,1,1,1,1,1,1,1,1,1,0],
+  [0,1,1,1,1,1,1,1,1,1,2,1,1,1,2,1,1,1,1,1,1,1,1,1,0],
+  [0,1,1,1,1,1,1,1,1,1,0,1,1,1,0,1,1,1,1,1,1,1,1,1,0],
+  [0,1,1,1,1,1,1,1,1,1,0,1,1,1,0,1,1,1,1,1,1,1,1,1,0],
+  [0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0],
+  [0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0],
+  [0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0],
+  [0,1,1,1,1,1,2,1,1,1,1,1,2,1,1,1,1,1,2,1,1,1,1,1,0],
+  [0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0],
+  [0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0],
+  [0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0],
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+];
+
+// ──────────────────────────────────────────────────────────────────
+//  [SECTION 2] 사운드 매니저 (SoundManager)
+//  모든 사운드를 관리하는 핵심 객체
+//  Web Audio API를 사용해 외부 파일 없이 사운드를 합성
+// ──────────────────────────────────────────────────────────────────
+const SoundManager = {
+
+  // ── 내부 상태 변수 ─────────────────────────────────────────────
+  ac: null,           // AudioContext (Web Audio API의 핵심)
+  masterGain: null,   // 마스터 볼륨 노드 (모든 사운드가 거침)
+  ambientGain: null,  // 환경음 전용 볼륨 노드
+  monsterGain: null,  // 괴물 소리 전용 볼륨 노드
+  uiGain: null,       // UI/이벤트 사운드 전용 볼륨 노드
+  heartGain: null,    // 심장박동 전용 볼륨 노드 (루프 컨트롤)
+
+  noiseBuffer: null,  // 미리 생성된 화이트노이즈 버퍼 (재사용)
+
+  // 타이머 변수 (사운드 예약 간격)
+  monsterSoundTimer: 0,   // 다음 괴물 울음까지 남은 시간(초)
+  ambientTimer: 0,        // 다음 환경음까지 남은 시간(초)
+
+  // 심장박동 관련 노드 (지속 재생되므로 참조 보관)
+  heartOscL: null,  // 왼쪽 심장음 오실레이터
+  heartOscR: null,  // 오른쪽 심장음 오실레이터
+  heartActive: false,
+
+  muted: false,       // 음소거 상태
+  masterVolume: 0.8,  // 마스터 볼륨 (0~1)
+
+  // ── 초기화 ─────────────────────────────────────────────────────
+  // 브라우저 정책상 AudioContext는 사용자 인터랙션 이후 생성 가능
+  init() {
+    try {
+      // AudioContext 생성 (브라우저 호환성 처리)
+      this.ac = new (window.AudioContext || window.webkitAudioContext)();
+
+      // ─ 마스터 볼륨 체인 구성 ─
+      // [각 사운드] → [전용 Gain] → [masterGain] → [스피커]
+      this.masterGain = this.ac.createGain();
+      this.masterGain.gain.value = this.masterVolume;
+      this.masterGain.connect(this.ac.destination);
+
+      this.ambientGain = this.ac.createGain();
+      this.ambientGain.gain.value = 0.7;
+      this.ambientGain.connect(this.masterGain);
+
+      this.monsterGain = this.ac.createGain();
+      this.monsterGain.gain.value = 0.9;
+      this.monsterGain.connect(this.masterGain);
+
+      this.uiGain = this.ac.createGain();
+      this.uiGain.gain.value = 0.6;
+      this.uiGain.connect(this.masterGain);
+
+      this.heartGain = this.ac.createGain();
+      this.heartGain.gain.value = 0;  // 처음엔 무음
+      this.heartGain.connect(this.masterGain);
+
+      // ─ 화이트노이즈 버퍼 미리 생성 (성능 최적화) ─
+      // 매번 생성하면 CPU 낭비 → 한 번만 만들어 재사용
+      this.noiseBuffer = this._createNoiseBuffer(2.0);  // 2초짜리 버퍼
+
+      // ─ 랜덤 타이머 초기화 ─
+      this.monsterSoundTimer = 5 + Math.random() * 8;  // 5~13초 후 첫 울음
+      this.ambientTimer      = 8 + Math.random() * 15; // 8~23초 후 첫 환경음
+
+      this._updateStatus('♪ 사운드 활성');
+      return true;
+    } catch(e) {
+      console.warn('Web Audio API 초기화 실패:', e);
+      this._updateStatus('♪ 사운드 비활성');
+      return false;
+    }
+  },
+
+  // ── 준비 확인 헬퍼 ────────────────────────────────────────────
+  // AudioContext가 없거나 음소거 상태면 false 반환
+  _ready() {
+    if (!this.ac || this.muted) return false;
+    // 브라우저가 AudioContext를 suspend 상태로 만들었을 때 재개
+    if (this.ac.state === 'suspended') this.ac.resume();
+    return true;
+  },
+
+  // ── 화이트노이즈 버퍼 생성 ────────────────────────────────────
+  // 화이트노이즈: -1 ~ 1 사이의 완전 랜덤 샘플
+  // 금속 충격음, 파편 소리 등 날카로운 소리의 기초 재료
+  _createNoiseBuffer(seconds) {
+    const sampleRate  = this.ac.sampleRate;
+    const frameCount  = sampleRate * seconds;
+    const buffer      = this.ac.createBuffer(1, frameCount, sampleRate);
+    const data        = buffer.getChannelData(0);
+    for (let i = 0; i < frameCount; i++) {
+      data[i] = Math.random() * 2 - 1;  // -1 ~ 1 랜덤
+    }
+    return buffer;
+  },
+
+  // ── 거리 기반 볼륨 계산 ───────────────────────────────────────
+  // dist: 픽셀 거리 / maxDist: 최대 청취 거리
+  // 반환값: 0(안들림) ~ 1(최대 볼륨)
+  // 역제곱 법칙(Inverse Square Law) 적용 → 현실적인 거리 감쇠
+  calcDistVolume(dist, maxDist = 400) {
+    if (dist >= maxDist) return 0;
+    // 선형이 아닌 제곱 감쇠 → 가까울수록 급격히 커짐
+    const ratio = 1 - (dist / maxDist);
+    return Math.pow(ratio, 1.5);  // 1.5제곱으로 자연스러운 감쇠
+  },
+
+  // ── 상태 표시 업데이트 ─────────────────────────────────────────
+  _updateStatus(msg) {
+    const el = document.getElementById('soundStatus');
+    if (el) el.textContent = msg;
+  },
+
+  // ════════════════════════════════════════════════════════════════
+  //  [SOUND 1] 괴물 울음소리
+  //  오실레이터 주파수 변조로 생물체 특유의 으르렁 소리 합성
+  //  dist: 플레이어와 가장 가까운 적까지의 거리 (픽셀)
+  // ════════════════════════════════════════════════════════════════
+  monsterGrowl(dist) {
+    if (!this._ready()) return;
+
+    // 거리 기반 볼륨 (멀수록 조용, 가까울수록 크게)
+    const vol = this.calcDistVolume(dist, 500);
+    if (vol < 0.02) return;  // 너무 멀면 재생 안 함
+
+    const ac  = this.ac;
+    const now = ac.currentTime;
+
+    // ─ 노드 구성: [노이즈] + [로우 오실레이터] → [필터] → [gainEnv] → [monsterGain] ─
+
+    // 1. 베이스 노이즈 (거친 질감)
+    const noiseSource = ac.createBufferSource();
+    noiseSource.buffer = this.noiseBuffer;
+    noiseSource.loop   = false;
+
+    // 2. 저주파 오실레이터 (으르렁 피치)
+    const osc = ac.createOscillator();
+    osc.type = 'sawtooth';  // 톱니파: 금속성 거친 음색
+    osc.frequency.setValueAtTime(55, now);          // 55Hz 시작 (낮은 음)
+    osc.frequency.linearRampToValueAtTime(30, now + 0.3);  // 낮아짐
+    osc.frequency.linearRampToValueAtTime(70, now + 0.8);  // 피크
+    osc.frequency.linearRampToValueAtTime(20, now + 1.5);  // 사라짐
+
+    // 3. 주파수 변조용 LFO (울부짖는 효과 - 진동)
+    const lfo = ac.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 4 + Math.random() * 3;  // 4~7Hz 진동
+    const lfoGain = ac.createGain();
+    lfoGain.gain.value = 15;  // 변조 깊이 (±15Hz 흔들림)
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.frequency);  // LFO가 osc 주파수를 흔듦
+
+    // 4. 로우패스 필터 (날카로운 고음 제거 → 으르렁 느낌)
+    const filter = ac.createBiquadFilter();
+    filter.type            = 'lowpass';
+    filter.frequency.value = 300 + Math.random() * 200;  // 300~500Hz
+    filter.Q.value         = 3;  // 필터 날카로움
+
+    // 5. 볼륨 엔벨로프 (Attack-Decay 모양)
+    const gainEnv = ac.createGain();
+    gainEnv.gain.setValueAtTime(0, now);
+    gainEnv.gain.linearRampToValueAtTime(vol * 0.8, now + 0.2);  // 빠른 Attack
+    gainEnv.gain.linearRampToValueAtTime(vol,       now + 0.5);  // 피크
+    gainEnv.gain.linearRampToValueAtTime(0,         now + 1.8);  // 서서히 Decay
+
+    // ─ 노드 연결 ─
+    noiseSource.connect(filter);
+    osc.connect(filter);
+    filter.connect(gainEnv);
+    gainEnv.connect(this.monsterGain);
+
+    // ─ 재생 시작/종료 ─
+    osc.start(now);
+    lfo.start(now);
+    noiseSource.start(now);
+    osc.stop(now + 2.0);
+    lfo.stop(now + 2.0);
+    noiseSource.stop(now + 2.0);
+
+    // 디버그 표시
+    this._updateStatus(`♪ 괴물 울음 (거리: ${Math.round(dist)}px, 볼륨: ${(vol*100).toFixed(0)}%)`);
+  },
+
+  // ─ 괴물 울음 랜덤 트리거 (비명 변형) ────────────────────────
+  // 가끔 더 날카로운 비명 소리로 변형 (점프스케어)
+  monsterScream(dist) {
+    if (!this._ready()) return;
+    const vol = this.calcDistVolume(dist, 600);
+    if (vol < 0.05) return;
+
+    const ac  = this.ac;
+    const now = ac.currentTime;
+
+    // 고주파 비명 오실레이터
+    const osc = ac.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(200, now);
+    osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
+    osc.frequency.exponentialRampToValueAtTime(50,  now + 0.6);
+
+    const dist2 = ac.createWaveShaper();
+    const curve = new Float32Array(256);
+    for (let i = 0; i < 256; i++) {
+      const x = (i * 2) / 256 - 1;
+      curve[i] = (Math.PI + 200) * x / (Math.PI + 200 * Math.abs(x));  // 디스토션
+    }
+    dist2.curve = curve;
+
+    const gainEnv = ac.createGain();
+    gainEnv.gain.setValueAtTime(0, now);
+    gainEnv.gain.linearRampToValueAtTime(vol * 0.6, now + 0.05);
+    gainEnv.gain.linearRampToValueAtTime(0,         now + 0.7);
+
+    osc.connect(dist2);
+    dist2.connect(gainEnv);
+    gainEnv.connect(this.monsterGain);
+
+    osc.start(now);
+    osc.stop(now + 0.8);
+  },
+
+  // ════════════════════════════════════════════════════════════════
+  //  [SOUND 2] 심장박동 (지속 루프)
+  //  위험도(dangerLevel 0~1)에 따라 볼륨과 속도가 변함
+  //  두 번의 쿵쿵(lub-dub) 패턴으로 실제 심장 소리 모방
+  // ════════════════════════════════════════════════════════════════
+  startHeartbeat() {
+    if (!this._ready() || this.heartActive) return;
+    this.heartActive = true;
+    this._scheduleHeartbeat();
+  },
+
+  stopHeartbeat() {
+    this.heartActive = false;
+  },
+
+  _heartbeatBPM: 60,    // 현재 심박수 (위험도에 따라 변화)
+  _heartbeatTimer: null,
+
+  // 심박을 예약(schedule)하는 재귀 함수
+  _scheduleHeartbeat() {
+    if (!this.heartActive || !this._ready()) return;
+
+    const ac      = this.ac;
+    const now     = ac.currentTime;
+    const vol     = this.heartGain.gain.value;
+
+    if (vol < 0.01) {
+      // 볼륨이 너무 낮으면 잠시 대기 후 재시도
+      this._heartbeatTimer = setTimeout(() => this._scheduleHeartbeat(), 500);
+      return;
+    }
+
+    // BPM에 따른 박자 간격
+    const interval = 60 / this._heartbeatBPM;
+
+    // ─ Lub (첫 번째 두근) ─
+    this._playHeartPulse(now, 0.0, 80, vol * 1.0);
+    // ─ Dub (두 번째 두근 - 약간 약하고 높은 음) ─
+    this._playHeartPulse(now, 0.15, 120, vol * 0.7);
+
+    // 시각적 피드백: 화면 테두리 펄스
+    this._triggerHeartVisual(vol);
+
+    // 다음 박자 예약
+    const nextIn = interval * 1000;
+    this._heartbeatTimer = setTimeout(() => this._scheduleHeartbeat(), nextIn);
+  },
+
+  // 심박 한 번 재생 (저주파 임펄스)
+  _playHeartPulse(time, offset, freq, vol) {
+    if (!this._ready()) return;
+    const ac = this.ac;
+    const t  = time + offset;
+
+    const osc = ac.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.3, t + 0.1);  // 주파수 급강하
+
+    const gainEnv = ac.createGain();
+    gainEnv.gain.setValueAtTime(0, t);
+    gainEnv.gain.linearRampToValueAtTime(vol, t + 0.02);  // 빠른 Attack
+    gainEnv.gain.exponentialRampToValueAtTime(0.001, t + 0.15);  // 빠른 Decay
+
+    osc.connect(gainEnv);
+    gainEnv.connect(this.heartGain);
+
+    osc.start(t);
+    osc.stop(t + 0.2);
+  },
+
+  // 심장박동 시각 피드백 (CSS로 화면 테두리 빨간 펄스)
+  _triggerHeartVisual(vol) {
+    const el = document.getElementById('heartPulse');
+    if (!el) return;
+    const intensity = Math.round(vol * 40);
+    el.style.boxShadow = `inset 0 0 ${intensity}px rgba(255,0,0,0.6)`;
+    setTimeout(() => {
+      el.style.boxShadow = 'inset 0 0 0 rgba(255,0,0,0)';
+    }, 120);
+  },
+
+  // 심장박동 위험도 업데이트 (매 프레임 호출)
+  // dangerLevel: 0(안전) ~ 1(매우 위험)
+  updateHeartbeat(dangerLevel) {
+    if (!this.ac) return;
+
+    // 목표 볼륨: 위험도 0이면 0, 1이면 0.8
+    const targetVol = dangerLevel > 0.05 ? dangerLevel * 0.8 : 0;
+
+    // 현재 볼륨에서 목표 볼륨으로 부드럽게 전환 (라플라시안 스무딩)
+    const current = this.heartGain.gain.value;
+    const smoothed = current + (targetVol - current) * 0.05;  // 5% 씩 이동
+    this.heartGain.gain.value = smoothed;
+
+    // BPM 조절: 안전=60, 위험=120
+    this._heartbeatBPM = 60 + dangerLevel * 60;
+
+    // 위험도가 생기면 심장박동 시작
+    if (dangerLevel > 0.05 && !this.heartActive) {
+      this.startHeartbeat();
+    }
+  },
+
+  // ════════════════════════════════════════════════════════════════
+  //  [SOUND 3] 환경 충격음 (점프스케어)
+  //  화이트노이즈 + 필터로 갑작스러운 소리 합성
+  //  type: 'glass'(유리), 'metal'(금속), 'impact'(충격)
+  // ════════════════════════════════════════════════════════════════
+  ambientCrash(type = null) {
+    if (!this._ready()) return;
+
+    // 랜덤 타입 선택
+    const types = ['glass', 'metal', 'impact', 'pipe'];
+    const t = type || types[Math.floor(Math.random() * types.length)];
+
+    const ac  = this.ac;
+    const now = ac.currentTime;
+
+    // ─ 화이트노이즈 소스 (재사용 버퍼 사용) ─
+    const noise = ac.createBufferSource();
+    noise.buffer = this.noiseBuffer;
+    noise.loop   = false;
+
+    // ─ 사운드 타입별 파라미터 ─
+    let filterFreq, filterQ, filterType, decayTime, pitch;
+
+    switch(t) {
+      case 'glass':
+        // 유리 깨지는 소리: 하이패스 + 빠른 감쇠
+        filterType = 'highpass'; filterFreq = 2000; filterQ = 1;
+        decayTime  = 0.8;  pitch = null;
+        break;
+      case 'metal':
+        // 금속 소리: 밴드패스 + 오실레이터 링잉
+        filterType = 'bandpass'; filterFreq = 800; filterQ = 5;
+        decayTime  = 1.2;  pitch = 220;
+        break;
+      case 'impact':
+        // 충돌 소리: 로우패스 + 저음 강조
+        filterType = 'lowpass'; filterFreq = 500; filterQ = 2;
+        decayTime  = 0.6;  pitch = 80;
+        break;
+      case 'pipe':
+        // 파이프 소리: 공명하는 밴드패스
+        filterType = 'bandpass'; filterFreq = 400; filterQ = 8;
+        decayTime  = 2.0;  pitch = 180;
+        break;
+    }
+
+    // ─ 필터 ─
+    const filter = ac.createBiquadFilter();
+    filter.type            = filterType;
+    filter.frequency.value = filterFreq;
+    filter.Q.value         = filterQ;
+
+    // ─ 볼륨 엔벨로프 (순간적 Attack, 느린 Decay) ─
+    const gainEnv = ac.createGain();
+    gainEnv.gain.setValueAtTime(0, now);
+    gainEnv.gain.linearRampToValueAtTime(0.9, now + 0.01);  // 순간 최대
+    gainEnv.gain.exponentialRampToValueAtTime(0.001, now + decayTime);
+
+    // ─ 노드 연결 ─
+    noise.connect(filter);
+    filter.connect(gainEnv);
+    gainEnv.connect(this.ambientGain);
+    noise.start(now);
+    noise.stop(now + decayTime + 0.1);
+
+    // ─ 오실레이터 추가 (금속성 링잉 효과) ─
+    if (pitch) {
+      const osc2 = ac.createOscillator();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(pitch, now);
+      osc2.frequency.exponentialRampToValueAtTime(pitch * 0.5, now + decayTime);
+
+      const osc2Gain = ac.createGain();
+      osc2Gain.gain.setValueAtTime(0.3, now);
+      osc2Gain.gain.exponentialRampToValueAtTime(0.001, now + decayTime);
+
+      osc2.connect(osc2Gain);
+      osc2Gain.connect(this.ambientGain);
+      osc2.start(now);
+      osc2.stop(now + decayTime);
+    }
+
+    // 점프스케어 시각 효과 (화면 잠깐 밝아짐)
+    this._triggerJumpFlash(0.15);
+    // 화면 흔들림은 게임 코드에서 triggerShake 호출
+    if (typeof triggerShake === 'function') triggerShake(3, 0.25);
+
+    this._updateStatus(`♪ 환경음: ${t}`);
+  },
+
+  // 점프스케어 플래시 (CSS)
+  _triggerJumpFlash(alpha) {
+    const el = document.getElementById('jumpFlash');
+    if (!el) return;
+    el.style.background = `rgba(255,255,255,${alpha})`;
+    setTimeout(() => { el.style.background = 'rgba(255,255,255,0)'; }, 80);
+  },
+
+  // ════════════════════════════════════════════════════════════════
+  //  [SOUND 4] 문 삐걱 소리 (Door Creak)
+  //  주파수 글라이드로 낡은 경첩 소리 합성
+  // ════════════════════════════════════════════════════════════════
+  doorCreak() {
+    if (!this._ready()) return;
+    const ac  = this.ac;
+    const now = ac.currentTime;
+
+    // 2개의 오실레이터로 화음 (삐걱임)
+    [0, 1].forEach(i => {
+      const osc = ac.createOscillator();
+      osc.type = 'sawtooth';
+
+      // 랜덤 시작 주파수와 방향 (올라가거나 내려가거나)
+      const startFreq = 200 + Math.random() * 100;
+      const endFreq   = startFreq + (Math.random() - 0.5) * 300;
+      osc.frequency.setValueAtTime(startFreq, now + i * 0.05);
+      osc.frequency.linearRampToValueAtTime(endFreq, now + 0.4 + i * 0.05);
+
+      // 트레몰로 (미세 진동으로 삐걱 질감)
+      const tremolo = ac.createOscillator();
+      tremolo.frequency.value = 20 + Math.random() * 15;
+      const tremoloGain = ac.createGain();
+      tremoloGain.gain.value = 0.3;
+      tremolo.connect(tremoloGain);
+      tremoloGain.connect(osc.frequency);
+
+      // 로우패스 필터
+      const filter = ac.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 1500;
+
+      const gainEnv = ac.createGain();
+      gainEnv.gain.setValueAtTime(0, now);
+      gainEnv.gain.linearRampToValueAtTime(0.25, now + 0.05);
+      gainEnv.gain.linearRampToValueAtTime(0.1,  now + 0.3);
+      gainEnv.gain.linearRampToValueAtTime(0,    now + 0.6);
+
+      osc.connect(filter);
+      filter.connect(gainEnv);
+      gainEnv.connect(this.uiGain);
+
+      osc.start(now);
+      tremolo.start(now);
+      osc.stop(now + 0.7);
+      tremolo.stop(now + 0.7);
+    });
+
+    this._updateStatus('♪ 문 삐걱');
+  },
+
+  // ════════════════════════════════════════════════════════════════
+  //  [SOUND 5] 아이템 획득음
+  //  type: 'key'(열쇠) | 'battery'(배터리)
+  // ════════════════════════════════════════════════════════════════
+  itemPickup(type) {
+    if (!this._ready()) return;
+    const ac  = this.ac;
+    const now = ac.currentTime;
+
+    if (type === 'key') {
+      // 열쇠: 금속성 딸랑이 (고주파 2음)
+      [0, 0.08].forEach((offset, i) => {
+        const osc = ac.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.value = 900 + i * 200;  // 900Hz, 1100Hz
+
+        const gainEnv = ac.createGain();
+        gainEnv.gain.setValueAtTime(0,    now + offset);
+        gainEnv.gain.linearRampToValueAtTime(0.4, now + offset + 0.01);
+        gainEnv.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.5);
+
+        osc.connect(gainEnv);
+        gainEnv.connect(this.uiGain);
+        osc.start(now + offset);
+        osc.stop(now + offset + 0.6);
+      });
+    } else {
+      // 배터리: 전자 buzz (저주파 + 노이즈)
+      const osc = ac.createOscillator();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(200, now);
+      osc.frequency.linearRampToValueAtTime(400, now + 0.1);
+
+      const gainEnv = ac.createGain();
+      gainEnv.gain.setValueAtTime(0,    now);
+      gainEnv.gain.linearRampToValueAtTime(0.3, now + 0.02);
+      gainEnv.gain.linearRampToValueAtTime(0,   now + 0.3);
+
+      osc.connect(gainEnv);
+      gainEnv.connect(this.uiGain);
+      osc.start(now);
+      osc.stop(now + 0.35);
+    }
+
+    this._updateStatus(`♪ 아이템 획득: ${type}`);
+  },
+
+  // ════════════════════════════════════════════════════════════════
+  //  [SOUND 6] 게임 오버 사운드
+  //  저음 붕괴 + 디스토션으로 공포스러운 죽음 연출
+  // ════════════════════════════════════════════════════════════════
+  gameOver() {
+    if (!this._ready()) return;
+    const ac  = this.ac;
+    const now = ac.currentTime;
+
+    // 심장박동 즉시 정지
+    this.stopHeartbeat();
+    this.heartGain.gain.setValueAtTime(0, now);
+
+    // ─ 저음 충격파 ─
+    const impact = ac.createOscillator();
+    impact.type = 'sawtooth';
+    impact.frequency.setValueAtTime(150, now);
+    impact.frequency.exponentialRampToValueAtTime(20, now + 1.5);
+
+    const dist = ac.createWaveShaper();
+    const curve = new Float32Array(256);
+    for (let i = 0; i < 256; i++) {
+      const x = (i * 2) / 256 - 1;
+      curve[i] = x < 0 ? -1 : 1;  // 하드 클리핑 (강한 디스토션)
+    }
+    dist.curve = curve;
+
+    const impGain = ac.createGain();
+    impGain.gain.setValueAtTime(0,    now);
+    impGain.gain.linearRampToValueAtTime(0.8, now + 0.05);
+    impGain.gain.exponentialRampToValueAtTime(0.001, now + 2.0);
+
+    // ─ 화이트노이즈 충격 ─
+    const noiseNode = ac.createBufferSource();
+    noiseNode.buffer = this.noiseBuffer;
+    const noiseFilter = ac.createBiquadFilter();
+    noiseFilter.type = 'lowpass';
+    noiseFilter.frequency.value = 800;
+    const noiseGainEnv = ac.createGain();
+    noiseGainEnv.gain.setValueAtTime(0,   now);
+    noiseGainEnv.gain.linearRampToValueAtTime(0.5, now + 0.02);
+    noiseGainEnv.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+
+    impact.connect(dist);
+    dist.connect(impGain);
+    impGain.connect(this.masterGain);
+
+    noiseNode.connect(noiseFilter);
+    noiseFilter.connect(noiseGainEnv);
+    noiseGainEnv.connect(this.masterGain);
+
+    impact.start(now);
+    impact.stop(now + 2.5);
+    noiseNode.start(now);
+    noiseNode.stop(now + 2.0);
+
+    // 강한 점프 플래시 + 화면 흔들림
+    this._triggerJumpFlash(0.6);
+    if (typeof triggerShake === 'function') triggerShake(10, 0.8);
+
+    this._updateStatus('♪ 게임오버');
+  },
+
+  // ════════════════════════════════════════════════════════════════
+  //  [SOUND 7] 탈출 성공 사운드
+  //  상승하는 화음으로 안도감 표현
+  // ════════════════════════════════════════════════════════════════
+  clearSound() {
+    if (!this._ready()) return;
+    const ac  = this.ac;
+    const now = ac.currentTime;
+
+    this.stopHeartbeat();
+    this.heartGain.gain.setValueAtTime(0, now);
+
+    // 상승 코드 (C - E - G - C')
+    const freqs = [261.6, 329.6, 392.0, 523.3];
+    freqs.forEach((freq, i) => {
+      const osc = ac.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+
+      const gainEnv = ac.createGain();
+      gainEnv.gain.setValueAtTime(0,    now + i * 0.1);
+      gainEnv.gain.linearRampToValueAtTime(0.3, now + i * 0.1 + 0.05);
+      gainEnv.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 1.5);
+
+      osc.connect(gainEnv);
+      gainEnv.connect(this.uiGain);
+      osc.start(now + i * 0.1);
+      osc.stop(now + i * 0.1 + 1.6);
+    });
+
+    this._updateStatus('♪ 탈출 성공');
+  },
+
+  // ════════════════════════════════════════════════════════════════
+  //  [SOUND 8] 저주파 드론 (배경 긴장음)
+  //  Phase에 따라 주파수와 볼륨이 변화하는 지속음
+  // ════════════════════════════════════════════════════════════════
+  _droneOsc: null,
+  _droneGain: null,
+
+  startDrone() {
+    if (!this._ready() || this._droneOsc) return;
+    const ac  = this.ac;
+    const now = ac.currentTime;
+
+    // 두 개의 오실레이터로 맥놀이(Beat) 효과
+    this._droneGain = ac.createGain();
+    this._droneGain.gain.value = 0.04;
+    this._droneGain.connect(this.ambientGain);
+
+    [40, 41.5].forEach(freq => {  // 1.5Hz 차이 → 1.5Hz 맥놀이
+      const osc = ac.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      osc.connect(this._droneGain);
+      osc.start(now);
+      if (!this._droneOsc) this._droneOsc = osc;
+      else this._droneOsc2 = osc;
+    });
+  },
+
+  _droneOsc2: null,
+
+  // 드론 볼륨을 Phase에 맞게 업데이트
+  updateDrone(phase) {
+    if (!this._droneGain) return;
+    const ac  = this.ac;
+    const now = ac.currentTime;
+    const targetVol = [0.04, 0.07, 0.12][phase] || 0.04;
+    this._droneGain.gain.linearRampToValueAtTime(targetVol, now + 2.0);
+  },
+
+  // ════════════════════════════════════════════════════════════════
+  //  [SOUND 9] 시간 경고음 (잔여시간 30초 이하)
+  //  빠른 틱 소리로 긴박감 연출
+  // ════════════════════════════════════════════════════════════════
+  _tickSource: null,
+  _tickGain: null,
+  _ticking: false,
+
+  startTicking() {
+    if (!this._ready() || this._ticking) return;
+    this._ticking = true;
+    this._scheduleTick();
+  },
+
+  stopTicking() {
+    this._ticking = false;
+  },
+
+  _scheduleTick() {
+    if (!this._ticking || !this._ready()) return;
+    const ac  = this.ac;
+    const now = ac.currentTime;
+
+    const osc = ac.createOscillator();
+    osc.type = 'square';
+    osc.frequency.value = 1200;
+
+    const gainEnv = ac.createGain();
+    gainEnv.gain.setValueAtTime(0,    now);
+    gainEnv.gain.linearRampToValueAtTime(0.15, now + 0.005);
+    gainEnv.gain.linearRampToValueAtTime(0,    now + 0.04);
+
+    osc.connect(gainEnv);
+    gainEnv.connect(this.uiGain);
+    osc.start(now);
+    osc.stop(now + 0.05);
+
+    setTimeout(() => this._scheduleTick(), 500);  // 0.5초마다 틱
+  },
+
+  // ════════════════════════════════════════════════════════════════
+  //  [UPDATE] 매 프레임 호출되는 사운드 업데이트 함수
+  //  타이머를 감소시키고 랜덤 사운드를 트리거
+  // ════════════════════════════════════════════════════════════════
+  update(dt, dangerLevel, minEnemyDist, phase, remainingTime) {
+    if (!this.ac) return;
+
+    // ─ 심장박동 업데이트 ─
+    this.updateHeartbeat(dangerLevel);
+
+    // ─ 드론 볼륨 업데이트 ─
+    this.updateDrone(phase);
+
+    // ─ 잔여시간 30초 이하: 틱 사운드 시작 ─
+    if (remainingTime < 30 && !this._ticking) {
+      this.startTicking();
+    } else if (remainingTime >= 30 && this._ticking) {
+      this.stopTicking();
+    }
+
+    // ─ 괴물 울음 타이머 ─
+    this.monsterSoundTimer -= dt;
+    if (this.monsterSoundTimer <= 0) {
+      // Phase에 따라 울음 빈도 증가
+      const minInterval = [8, 5, 3][phase] || 8;   // 최소 간격 (초)
+      const maxInterval = [15, 10, 6][phase] || 15; // 최대 간격 (초)
+      this.monsterSoundTimer = minInterval + Math.random() * (maxInterval - minInterval);
+
+      // 10% 확률로 비명 소리
+      if (Math.random() < 0.1) {
+        this.monsterScream(minEnemyDist);
+      } else {
+        this.monsterGrowl(minEnemyDist);
+      }
+    }
+
+    // ─ 환경 충격음 타이머 ─
+    this.ambientTimer -= dt;
+    if (this.ambientTimer <= 0) {
+      // Phase에 따라 환경음 빈도 증가
+      const minA = [15, 10, 6][phase] || 15;
+      const maxA = [30, 20, 12][phase] || 30;
+      this.ambientTimer = minA + Math.random() * (maxA - minA);
+      this.ambientCrash();
+    }
+  },
+
+  // ─ 마스터 볼륨 설정 ──────────────────────────────────────────
+  setMasterVolume(vol) {
+    this.masterVolume = vol;
+    if (this.masterGain) this.masterGain.gain.value = this.muted ? 0 : vol;
+  },
+
+  // ─ 음소거 토글 ───────────────────────────────────────────────
+  toggleMute() {
+    this.muted = !this.muted;
+    if (this.masterGain) {
+      this.masterGain.gain.value = this.muted ? 0 : this.masterVolume;
+    }
+    document.getElementById('muteBtn').textContent = this.muted ? 'UNMUTE' : 'MUTE';
+    this._updateStatus(this.muted ? '♪ 음소거' : '♪ 사운드 활성');
+  },
+
+  // ─ 게임 재시작 시 사운드 상태 리셋 ─────────────────────────
+  reset() {
+    this.stopHeartbeat();
+    this.stopTicking();
+    this.heartActive = false;
+    this._ticking    = false;
+    if (this.heartGain) this.heartGain.gain.value = 0;
+    this.monsterSoundTimer = 5 + Math.random() * 8;
+    this.ambientTimer      = 8 + Math.random() * 15;
+  }
+};
+
+// ──────────────────────────────────────────────────────────────────
+//  [SECTION 3] 게임 상태 변수
+// ──────────────────────────────────────────────────────────────────
+let gameMap, player, enemies, items;
+let gameState, totalTime, elapsedTime, lastTimestamp, animFrame;
+let flashRadius, flashTimer, shake, shakeTimer, dangerLevel;
+let minEnemyDist = 999;  // 가장 가까운 적까지의 거리
+const keys = {};
+
+// ──────────────────────────────────────────────────────────────────
+//  [SECTION 4] 게임 초기화
+// ──────────────────────────────────────────────────────────────────
+function initGame() {
+  gameMap     = MAP_TEMPLATE.map(row => [...row]);
+  totalTime   = 5 * 60;
+  elapsedTime = 0;
+  flashRadius = 110;
+  flashTimer  = 0;
+  shake       = 0;
+  shakeTimer  = 0;
+  dangerLevel = 0;
+  minEnemyDist = 999;
+
+  player = {
+    x: TILE * 2 + TILE/2, y: TILE * 2 + TILE/2,
+    speed: 2.5, radius: 10,
+    hasKey: false, hasBattery: false, alive: true,
+  };
+
+  items = [
+    { type:'key',     tx:22, ty:15, collected:false, x:22*TILE+TILE/2, y:15*TILE+TILE/2 },
+    { type:'battery', tx:12, ty:8,  collected:false, x:12*TILE+TILE/2, y:8*TILE+TILE/2  },
+    { type:'battery', tx:3,  ty:14, collected:false, x:3*TILE+TILE/2,  y:14*TILE+TILE/2 },
+  ];
+
+  enemies = [
+    makeEnemy(12*TILE+TILE/2, 2*TILE+TILE/2),
+    makeEnemy(7*TILE+TILE/2,  15*TILE+TILE/2),
+    makeEnemy(20*TILE+TILE/2, 9*TILE+TILE/2),
+  ];
+
+  // 사운드 매니저 리셋
+  SoundManager.reset();
+  // 드론 배경음 시작
+  SoundManager.startDrone();
+
+  gameState = 'playing';
+  lastTimestamp = null;
+  updateUI();
+  showMessage('열쇠를 찾아 탈출하라!', 3000);
+}
+
+function makeEnemy(x, y) {
+  return {
+    x, y, radius: 12, speed: 1.2,
+    angle: Math.random() * Math.PI * 2,
+    moveTimer: 0, chasing: false,
+    sightRange: 150, alertTimer: 0,
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  [SECTION 5] UI & 메시지
+// ──────────────────────────────────────────────────────────────────
+let msgTimeout = null;
+function showMessage(text, duration = 2000) {
+  const el = document.getElementById('message');
+  el.textContent = text;
+  el.style.opacity = '1';
+  if (msgTimeout) clearTimeout(msgTimeout);
+  msgTimeout = setTimeout(() => { el.style.opacity = '0'; }, duration);
+}
+
+function updateUI() {
+  const remaining = Math.max(0, totalTime - elapsedTime);
+  const m = Math.floor(remaining / 60);
+  const s = Math.floor(remaining % 60);
+  const tEl = document.getElementById('timerValue');
+  tEl.textContent = `${m}:${s.toString().padStart(2,'0')}`;
+
+  const ratio = remaining / totalTime;
+  if (ratio > 0.5) {
+    tEl.style.color = '#00ff88';
+    tEl.style.textShadow = '0 0 8px #00ff8855';
+    document.getElementById('timerBox').style.borderColor = '#00ff8855';
+  } else if (ratio > 0.25) {
+    tEl.style.color = '#ffcc00';
+    tEl.style.textShadow = '0 0 8px #ffcc0055';
+    document.getElementById('timerBox').style.borderColor = '#ffcc0055';
+  } else {
+    // 잔여 25% 이하: 타이머 깜빡임
+    tEl.style.color = '#ff3333';
+    tEl.style.textShadow = `0 0 ${12 + Math.sin(Date.now()/200)*6}px #ff333399`;
+    document.getElementById('timerBox').style.borderColor = '#ff333388';
+  }
+
+  const pEl = document.getElementById('phaseValue');
+  if (elapsedTime < 120) {
+    pEl.textContent = '탐색 중 ◎'; pEl.style.color = '#00ff88';
+  } else if (elapsedTime < 240) {
+    pEl.textContent = '위험 ▲▲';  pEl.style.color = '#ffcc00';
+  } else {
+    pEl.textContent = '긴급 !!!';  pEl.style.color = '#ff3333';
+  }
+
+  const inv = document.getElementById('inventoryBox');
+  const parts = [];
+  if (player.hasKey)     parts.push('🗝 열쇠');
+  if (player.hasBattery) parts.push('🔋 배터리');
+  inv.textContent = '인벤토리: ' + (parts.length ? parts.join('  ') : '없음');
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  [SECTION 6] 게임 로직 (충돌, 이동, AI)
+// ──────────────────────────────────────────────────────────────────
+function isSolid(px, py) {
+  const tx = Math.floor(px / TILE);
+  const ty = Math.floor(py / TILE);
+  if (tx < 0 || tx >= COLS || ty < 0 || ty >= ROWS) return true;
+  const t = gameMap[ty][tx];
+  return t === T.WALL || t === T.DOOR_L || t === T.LOCK;
+}
+
+function movePlayer(dt) {
+  let dx = 0, dy = 0;
+  if (keys['ArrowUp']    || keys['KeyW'] || keys['w'] || keys['W']) dy -= 1;
+  if (keys['ArrowDown']  || keys['KeyS'] || keys['s'] || keys['S']) dy += 1;
+  if (keys['ArrowLeft']  || keys['KeyA'] || keys['a'] || keys['A']) dx -= 1;
+  if (keys['ArrowRight'] || keys['KeyD'] || keys['d'] || keys['D']) dx += 1;
+  if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+
+  const spd = player.speed * 60 * dt;
+  const nx  = player.x + dx * spd;
+  const ny  = player.y + dy * spd;
+  const r   = player.radius - 2;
+
+  if (!isSolid(nx+r, player.y-r) && !isSolid(nx+r, player.y+r) &&
+      !isSolid(nx-r, player.y-r) && !isSolid(nx-r, player.y+r)) player.x = nx;
+  if (!isSolid(player.x+r, ny-r) && !isSolid(player.x+r, ny+r) &&
+      !isSolid(player.x-r, ny-r) && !isSolid(player.x-r, ny+r)) player.y = ny;
+
+  player.x = Math.max(player.radius, Math.min(canvas.width  - player.radius, player.x));
+  player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y));
+}
+
+function checkItems() {
+  for (const item of items) {
+    if (item.collected) continue;
+    const dx = player.x - item.x;
+    const dy = player.y - item.y;
+    if (Math.sqrt(dx*dx + dy*dy) < TILE * 0.8) {
+      item.collected = true;
+      if (item.type === 'key') {
+        player.hasKey = true;
+        showMessage('열쇠 획득! 출구로 가라!', 3000);
+        triggerShake(4, 0.4);
+        SoundManager.itemPickup('key');       // ★ 열쇠 획득음
+      } else if (item.type === 'battery') {
+        flashTimer = 8;
+        showMessage('배터리 획득! 시야 확장!', 2000);
+        SoundManager.itemPickup('battery');   // ★ 배터리 획득음
+      }
+    }
+  }
+}
+
+// 문 열기 - 이전에 열렸던 문인지 추적
+const _openedDoors = new Set();
+
+function checkDoors() {
+  const tx = Math.floor(player.x / TILE);
+  const ty = Math.floor(player.y / TILE);
+
+  for (let dy2 = -1; dy2 <= 1; dy2++) {
+    for (let dx2 = -1; dx2 <= 1; dx2++) {
+      const cx = tx + dx2;
+      const cy = ty + dy2;
+      if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) continue;
+
+      if (gameMap[cy][cx] === T.DOOR_L) {
+        const key = `${cx},${cy}`;
+        if (!_openedDoors.has(key)) {
+          _openedDoors.add(key);
+          SoundManager.doorCreak();           // ★ 문 삐걱 소리
+        }
+        gameMap[cy][cx] = T.DOOR_O;
+      }
+      if (gameMap[cy][cx] === T.LOCK && player.hasKey) {
+        gameMap[cy][cx] = T.EXIT;
+        showMessage('출구 개방! 탈출하라!', 3000);
+        triggerShake(3, 0.5);
+        SoundManager.doorCreak();             // ★ 출구 개방음
+      }
+    }
+  }
+
+  const onTile = gameMap[ty][tx];
+  if (onTile === T.EXIT) endGame('clear');
+}
+
+function updateEnemy(enemy, dt) {
+  if (elapsedTime < 120) {
+    enemy.speed = 1.2; enemy.sightRange = 130;
+  } else if (elapsedTime < 240) {
+    enemy.speed = 2.2; enemy.sightRange = 170;
+  } else {
+    enemy.speed = 3.4; enemy.sightRange = 200;
+  }
+
+  const dx   = player.x - enemy.x;
+  const dy   = player.y - enemy.y;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+
+  if (dist < enemy.sightRange) {
+    enemy.chasing = true; enemy.alertTimer = 3;
+    enemy.angle = Math.atan2(dy, dx);
+  } else {
+    if (enemy.alertTimer > 0) { enemy.alertTimer -= dt; enemy.chasing = true; }
+    else enemy.chasing = false;
+  }
+
+  if (!enemy.chasing) {
+    enemy.moveTimer -= dt;
+    if (enemy.moveTimer <= 0) {
+      enemy.angle = Math.random() * Math.PI * 2;
+      enemy.moveTimer = 1 + Math.random() * 2;
+    }
+  }
+
+  const spd = enemy.speed * 60 * dt;
+  const mx  = Math.cos(enemy.angle) * spd;
+  const my  = Math.sin(enemy.angle) * spd;
+  const r   = enemy.radius - 4;
+
+  if (!isSolid(enemy.x+mx+r, enemy.y) && !isSolid(enemy.x+mx-r, enemy.y)) {
+    enemy.x += mx;
+  } else { enemy.angle = Math.random() * Math.PI * 2; enemy.moveTimer = 0; }
+
+  if (!isSolid(enemy.x, enemy.y+my+r) && !isSolid(enemy.x, enemy.y+my-r)) {
+    enemy.y += my;
+  } else { enemy.angle = Math.random() * Math.PI * 2; enemy.moveTimer = 0; }
+
+  enemy.x = Math.max(TILE, Math.min(canvas.width  - TILE, enemy.x));
+  enemy.y = Math.max(TILE, Math.min(canvas.height - TILE, enemy.y));
+
+  if (dist < player.radius + enemy.radius - 4) endGame('gameover');
+}
+
+function calcDanger() {
+  minEnemyDist = Infinity;
+  for (const e of enemies) {
+    const dx = player.x - e.x;
+    const dy = player.y - e.y;
+    minEnemyDist = Math.min(minEnemyDist, Math.sqrt(dx*dx+dy*dy));
+  }
+  dangerLevel = Math.max(0, Math.min(1, 1 - minEnemyDist / 150));
+}
+
+function triggerShake(intensity, duration) {
+  shake = intensity; shakeTimer = duration;
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  [SECTION 7] 게임 종료
+// ──────────────────────────────────────────────────────────────────
+function endGame(reason) {
+  gameState = reason;
+  cancelAnimationFrame(animFrame);
+
+  // ★ 게임 종료 사운드
+  if (reason === 'gameover') SoundManager.gameOver();
+  else if (reason === 'clear') SoundManager.clearSound();
+  else {
+    // timeout: 경고음 + 흔들림
+    SoundManager.gameOver();
+    triggerShake(6, 1.0);
+  }
+
+  // 심장박동/틱 정지
+  SoundManager.stopHeartbeat();
+  SoundManager.stopTicking();
+
+  const ov = document.getElementById('overlay');
+  ov.innerHTML = '';
+  ov.style.display = 'flex';
+
+  const h1  = document.createElement('h1');
+  const sub = document.createElement('div');
+  sub.className = 'subtitle';
+  const msg = document.createElement('div');
+  msg.className = 'result-msg';
+  const btn = document.createElement('button');
+  btn.id = 'startBtn';
+  btn.textContent = '[ 다시 시작 ]';
+  btn.onclick = () => {
+    _openedDoors.clear();
+    ov.style.display = 'none';
+    initGame();
+    requestAnimationFrame(gameLoop);
+  };
+
+  if (reason === 'clear') {
+    h1.textContent = 'ESCAPED';
+    h1.style.color = '#00ff88'; h1.style.textShadow = '0 0 20px #00ff8888';
+    sub.textContent = '탈출 성공';
+    msg.textContent = '당신은 살아남았다.'; msg.className = 'result-msg msg-clear';
+  } else if (reason === 'gameover') {
+    h1.textContent = 'DEAD';
+    sub.textContent = '괴물에게 잡혔다';
+    msg.textContent = '체르노빌은 당신을 삼켰다.'; msg.className = 'result-msg msg-gameover';
+  } else {
+    h1.textContent = 'TIME OUT'; h1.style.color = '#ffcc00';
+    sub.textContent = '시간 초과';
+    msg.textContent = '방사능이 당신을 덮쳤다.'; msg.className = 'result-msg msg-timeout';
+  }
+
+  ov.appendChild(h1); ov.appendChild(sub); ov.appendChild(msg);
+  ov.appendChild(document.createElement('br')); ov.appendChild(btn);
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  [SECTION 8] 렌더링
+// ──────────────────────────────────────────────────────────────────
+const COLORS = {
+  wall:'#1a1a1a', wallBorder:'#2a2a2a',
+  floor:'#232820', floorGrid:'#1e231b',
+  doorL:'#5a3a1a', doorO:'#3a4a2a',
+  exit:'#1a3a1a', lock:'#3a2a1a',
+};
+
+function drawMap() {
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const t = gameMap[row][col];
+      const x = col * TILE, y = row * TILE;
+      if (t === T.WALL) {
+        ctx.fillStyle = COLORS.wall; ctx.fillRect(x,y,TILE,TILE);
+        ctx.strokeStyle = COLORS.wallBorder; ctx.lineWidth = 0.5;
+        ctx.strokeRect(x+.5,y+.5,TILE-1,TILE-1);
+      } else if (t === T.FLOOR || t === T.DOOR_O) {
+        ctx.fillStyle = COLORS.floor; ctx.fillRect(x,y,TILE,TILE);
+        ctx.strokeStyle = COLORS.floorGrid; ctx.lineWidth = 0.5;
+        ctx.strokeRect(x,y,TILE,TILE);
+      } else if (t === T.DOOR_L) {
+        ctx.fillStyle = COLORS.doorL; ctx.fillRect(x,y,TILE,TILE);
+        ctx.fillStyle = '#8b5a2b'; ctx.fillRect(x+4,y+4,TILE-8,TILE-8);
+        ctx.fillStyle = '#ffd700'; ctx.beginPath();
+        ctx.arc(x+TILE/2, y+TILE/2, 3, 0, Math.PI*2); ctx.fill();
+      } else if (t === T.LOCK) {
+        ctx.fillStyle = COLORS.lock; ctx.fillRect(x,y,TILE,TILE);
+        ctx.fillStyle = '#ff6600'; ctx.fillRect(x+6,y+6,TILE-12,TILE-12);
+        ctx.fillStyle = '#ffcc00';
+        ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('🔒', x+TILE/2, y+TILE/2);
+      } else if (t === T.EXIT) {
+        ctx.fillStyle = COLORS.exit; ctx.fillRect(x,y,TILE,TILE);
+        const grd = ctx.createRadialGradient(x+TILE/2,y+TILE/2,2,x+TILE/2,y+TILE/2,TILE);
+        grd.addColorStop(0,'rgba(0,255,100,0.3)'); grd.addColorStop(1,'rgba(0,255,100,0)');
+        ctx.fillStyle = grd; ctx.fillRect(x,y,TILE,TILE);
+        ctx.fillStyle = '#00ff64';
+        ctx.font = 'bold 10px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('EXIT', x+TILE/2, y+TILE/2);
+      }
+    }
+  }
+}
+
+function drawItems() {
+  const t = Date.now() / 1000;
+  for (const item of items) {
+    if (item.collected) continue;
+    const bob = Math.sin(t * 3 + item.x) * 3;
+    if (item.type === 'key') {
+      ctx.save();
+      ctx.shadowBlur = 12; ctx.shadowColor = '#ffdd00';
+      ctx.fillStyle = '#ffdd00'; ctx.beginPath();
+      ctx.arc(item.x, item.y+bob, 8, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#ff9900'; ctx.beginPath();
+      ctx.arc(item.x, item.y+bob, 4, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    } else {
+      ctx.save();
+      ctx.shadowBlur = 10; ctx.shadowColor = '#00aaff';
+      ctx.fillStyle = '#00aaff'; ctx.fillRect(item.x-6,item.y+bob-8,12,16);
+      ctx.fillStyle = '#0066cc'; ctx.fillRect(item.x-4,item.y+bob-6,8,12);
+      ctx.restore();
+    }
+  }
+}
+
+function drawPlayer() {
+  ctx.save();
+  ctx.shadowBlur = 15; ctx.shadowColor = 'rgba(100,200,255,0.5)';
+  ctx.fillStyle = '#aaddff'; ctx.beginPath();
+  ctx.arc(player.x, player.y, player.radius, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0; ctx.fillStyle = '#ffffff'; ctx.beginPath();
+  ctx.arc(player.x, player.y, player.radius*0.5, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function drawEnemies() {
+  const t = Date.now() / 500;
+  for (const enemy of enemies) {
+    ctx.save();
+    const pulse = 1 + Math.sin(t + enemy.x) * 0.1;
+    if (enemy.chasing) {
+      ctx.shadowBlur = 20 + Math.sin(t*3)*8; ctx.shadowColor = '#ff2200';
+      ctx.fillStyle = '#ff2200';
+    } else {
+      ctx.shadowBlur = 8; ctx.shadowColor = '#330000'; ctx.fillStyle = '#882200';
+    }
+    ctx.beginPath(); ctx.arc(enemy.x, enemy.y, enemy.radius*pulse, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0; ctx.fillStyle = enemy.chasing ? '#ffff00' : '#ff4400';
+    const eyeDist = enemy.radius * 0.4;
+    [-0.4, 0.4].forEach(offset => {
+      const ex = enemy.x + Math.cos(enemy.angle + offset) * eyeDist;
+      const ey = enemy.y + Math.sin(enemy.angle + offset) * eyeDist;
+      ctx.beginPath(); ctx.arc(ex, ey, 3, 0, Math.PI*2); ctx.fill();
+    });
+    ctx.restore();
+  }
+}
+
+function drawFlashlight() {
+  let radius = flashRadius;
+  if (flashTimer > 0) radius = 180;
+  if (elapsedTime > 240) radius *= 0.85;
+
+  ctx.save();
+  const grad = ctx.createRadialGradient(player.x, player.y, radius*0.4, player.x, player.y, radius*1.2);
+  grad.addColorStop(0, 'rgba(0,0,0,0)');
+  grad.addColorStop(0.6, 'rgba(0,0,0,0.5)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.97)');
+  ctx.fillStyle = grad; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  if (dangerLevel > 0) {
+    ctx.fillStyle = `rgba(255,0,0,${dangerLevel * 0.12})`;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+  }
+  ctx.restore();
+}
+
+function drawVignette() {
+  if (dangerLevel < 0.1) return;
+  ctx.save();
+  const grad = ctx.createRadialGradient(
+    canvas.width/2, canvas.height/2, canvas.width*0.3,
+    canvas.width/2, canvas.height/2, canvas.width*0.7
+  );
+  grad.addColorStop(0, 'rgba(255,0,0,0)');
+  grad.addColorStop(1, `rgba(255,0,0,${dangerLevel*0.3})`);
+  ctx.fillStyle = grad; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.restore();
+}
+
+function drawStatic() {
+  if (elapsedTime < 240) return;
+  const intensity = (elapsedTime - 240) / 60;
+  if (Math.random() > 0.7) return;
+  ctx.save(); ctx.globalAlpha = intensity * 0.04;
+  for (let i = 0; i < 50; i++) {
+    ctx.fillStyle = Math.random() > 0.5 ? '#ffffff' : '#ff0000';
+    ctx.fillRect(Math.random()*canvas.width, Math.random()*canvas.height, Math.random()*30+5, Math.random()*4+1);
+  }
+  ctx.restore();
+}
+
+function drawBatteryHUD() {
+  if (flashTimer <= 0) return;
+  ctx.save(); ctx.fillStyle = '#0088ff';
+  ctx.font = '11px monospace'; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+  ctx.fillText(`배터리: ${flashTimer.toFixed(1)}s`, canvas.width-12, 12);
+  ctx.restore();
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  [SECTION 9] 메인 게임 루프
+// ──────────────────────────────────────────────────────────────────
+function gameLoop(timestamp) {
+  if (gameState !== 'playing') return;
+
+  if (!lastTimestamp) lastTimestamp = timestamp;
+  const dt = Math.min((timestamp - lastTimestamp) / 1000, 0.05);
+  lastTimestamp = timestamp;
+
+  elapsedTime += dt;
+
+  if (elapsedTime >= totalTime) { endGame('timeout'); return; }
+  if (flashTimer > 0) flashTimer -= dt;
+  if (shakeTimer > 0) { shakeTimer -= dt; if (shakeTimer <= 0) shake = 0; }
+
+  // 현재 페이즈 (0=탐색, 1=위험, 2=긴급)
+  const phase = elapsedTime < 120 ? 0 : elapsedTime < 240 ? 1 : 2;
+
+  movePlayer(dt);
+  checkItems();
+  checkDoors();
+  for (const enemy of enemies) updateEnemy(enemy, dt);
+  calcDanger();
+
+  // ★ 사운드 매니저 업데이트 (매 프레임)
+  SoundManager.update(dt, dangerLevel, minEnemyDist, phase, totalTime - elapsedTime);
+
+  updateUI();
+
+  // ─ 렌더링 ─
+  ctx.save();
+  if (shake > 0) {
+    ctx.translate((Math.random()-.5)*shake*2, (Math.random()-.5)*shake*2);
+  }
+  ctx.fillStyle = '#0a0a0a'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  drawMap(); drawItems(); drawPlayer(); drawEnemies();
+  drawFlashlight(); drawVignette(); drawStatic(); drawBatteryHUD();
+  ctx.restore();
+
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  [SECTION 10] 입력 & 볼륨 컨트롤
+// ──────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  keys[e.code] = true; keys[e.key] = true;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+});
+document.addEventListener('keyup', e => {
+  keys[e.code] = false; keys[e.key] = false;
+});
+
+// 볼륨 슬라이더
+document.getElementById('volSlider').addEventListener('input', e => {
+  SoundManager.setMasterVolume(e.target.value / 100);
+});
+
+// 음소거 버튼
+document.getElementById('muteBtn').addEventListener('click', () => {
+  SoundManager.toggleMute();
+});
+
+// ── 시작 버튼 ─────────────────────────────────────────────────────
+document.getElementById('startBtn').onclick = () => {
+  // AudioContext는 반드시 사용자 인터랙션 후 초기화
+  if (!SoundManager.ac) SoundManager.init();
+
+  _openedDoors.clear();
+  document.getElementById('overlay').style.display = 'none';
+  initGame();
+  requestAnimationFrame(gameLoop);
+};
+
+// ── 초기 캔버스 ───────────────────────────────────────────────────
+ctx.fillStyle = '#0a0a0a';
+ctx.fillRect(0, 0, canvas.width, canvas.height);
+</script>
+</body>
+</html>
